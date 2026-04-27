@@ -282,6 +282,17 @@ const commands = {
     argKeys: ['settings'],
   },
 
+  getRfidPlaceNotSwipe: {
+    _package: 'misc',
+    plugin: 'get_rfid_place_not_swipe'
+  },
+
+  setRfidPlaceNotSwipe: {
+    _package: 'misc',
+    plugin: 'set_rfid_place_not_swipe',
+    argKeys: ['enabled'],
+  },
+
   // Synchronisation
   'sync_rfidcards_all': {
     _package: 'sync_rfidcards',

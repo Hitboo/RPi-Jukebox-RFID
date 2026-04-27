@@ -223,6 +223,10 @@
       "title": "General Settings",
       "show_covers": {
         "title": "Show Cover Art"
+      },
+      "place_not_swipe": {
+        "title": "Place not Swipe",
+        "description": "Enable place-not-swipe mode for RFID cards (place card to start, remove to stop)"
       }
     },
     "timers": {

@@ -124,3 +124,41 @@ def set_app_settings(settings={}):
     """Set configuration settings for the web app."""
     for key, value in settings.items():
         cfg.setn('webapp', key, value=value)
+
+
+@plugin.register
+def get_rfid_place_not_swipe():
+    """Get the place_not_swipe setting for the first RFID reader."""
+    rfid_cfg = jukebox.cfghandler.get_handler('rfid')
+    # Try to load the config if not already loaded
+    try:
+        reader_config_file = cfg.getn('rfid', 'reader_config')
+        jukebox.cfghandler.load_yaml(rfid_cfg, reader_config_file)
+    except:
+        pass  # Config might already be loaded or file might not exist
+    
+    # Get the first reader (assuming there's only one)
+    readers = rfid_cfg.getn('rfid', 'readers', default={})
+    if readers:
+        reader_key = list(readers.keys())[0]
+        return rfid_cfg.getn('rfid', 'readers', reader_key, 'place_not_swipe', 'enabled', default=False)
+    return False
+
+
+@plugin.register
+def set_rfid_place_not_swipe(enabled=False):
+    """Set the place_not_swipe enabled setting for the first RFID reader."""
+    rfid_cfg = jukebox.cfghandler.get_handler('rfid')
+    # Try to load the config if not already loaded
+    try:
+        reader_config_file = cfg.getn('rfid', 'reader_config')
+        jukebox.cfghandler.load_yaml(rfid_cfg, reader_config_file)
+    except:
+        pass  # Config might already be loaded or file might not exist
+    
+    # Get the first reader (assuming there's only one)
+    readers = rfid_cfg.getn('rfid', 'readers', default={})
+    if readers:
+        reader_key = list(readers.keys())[0]
+        rfid_cfg.setn('rfid', 'readers', reader_key, 'place_not_swipe', 'enabled', value=enabled)
+        rfid_cfg.save()

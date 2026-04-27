@@ -11,6 +11,7 @@ import {
   Grid,
 } from '@mui/material';
 import ShowCovers from './show-covers';
+import PlaceNotSwipe from './place-not-swipe';
 
 const SettingsGeneral = () => {
   const { t } = useTranslation();
@@ -30,6 +31,7 @@ const SettingsGeneral = () => {
           sx={{ '& > .MuiGrid-root:not(:last-child)': spacer }}
         >
           <ShowCovers />
+          <PlaceNotSwipe />
         </Grid>
       </CardContent>
     </Card>
