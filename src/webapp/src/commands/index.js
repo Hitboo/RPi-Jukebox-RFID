@@ -282,6 +282,20 @@ const commands = {
     argKeys: ['settings'],
   },
 
+  get_folder_config: {
+    _package: 'player',
+    plugin: 'ctrl',
+    method: 'get_folder_config',
+    argKeys: ['folder'],
+  },
+
+  set_folder_playback_mode: {
+    _package: 'player',
+    plugin: 'ctrl',
+    method: 'set_folder_playback_mode',
+    argKeys: ['folder', 'mode'],
+  },
+
   getRfidPlaceNotSwipe: {
     _package: 'misc',
     plugin: 'get_rfid_place_not_swipe'

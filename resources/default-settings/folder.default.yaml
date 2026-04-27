@@ -1,0 +1,20 @@
+# Default folder configuration
+# This file is copied to audio folders when no folder config exists
+# Each folder can have its own playback settings and state
+
+# Playback mode determines how the folder behaves when played
+# Options:
+# - 'none': Normal playback - songs play in order, no special behavior
+# - 'shuffle': Random song order - playlist is shuffled when played
+# - 'resume': Continue from exact timestamp - resume where you left off in the song
+# - 'resume_song': Continue from song start - jump to last played song but start from beginning
+playback_mode: none
+
+# Playback state tracks where you left off in this folder
+# This allows resuming playback from the exact position
+# Automatically updated when pausing, stopping, or switching folders
+playback_state:
+  current_song_pos: 0      # Position in playlist (0 = first song)
+  elapsed: 0.0             # Seconds played into current song
+  current_filename: ""     # Which file is currently playing
+  play_status: "stop"      # Current state: "play", "pause", or "stop"

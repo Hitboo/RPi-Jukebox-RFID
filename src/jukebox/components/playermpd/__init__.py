@@ -88,6 +88,7 @@ import logging
 import time
 import functools
 from pathlib import Path
+from ruamel.yaml import YAML
 import components.player
 import jukebox.cfghandler
 import jukebox.utils as utils
@@ -336,6 +337,10 @@ class PlayerMPD:
 
     @plugs.tag
     def stop(self):
+        # Save current playback state before stopping
+        last_played_folder = self.music_player_status['player_status'].get('last_played_folder')
+        if last_played_folder:
+            self._save_folder_playback_state(last_played_folder)
         with self.mpd_lock:
             self.mpd_client.stop()
 
@@ -346,6 +351,11 @@ class PlayerMPD:
         This is what you want as card removal action: pause the playback, so it can be resumed when card is placed
         on the reader again. What happens on re-placement depends on configured second swipe option
         """
+        # Save current playback state on pause
+        if state == 1:  # Only save on pause, not on resume
+            last_played_folder = self.music_player_status['player_status'].get('last_played_folder')
+            if last_played_folder:
+                self._save_folder_playback_state(last_played_folder)
         with self.mpd_lock:
             self.mpd_client.pause(state)
 
@@ -572,6 +582,11 @@ class PlayerMPD:
         else:
             logger.debug('Calling first swipe action')
 
+            # Save current playback state before switching to new RFID card
+            last_played_folder = self.music_player_status['player_status'].get('last_played_folder')
+            if last_played_folder and last_played_folder != folder:
+                self._save_folder_playback_state(last_played_folder)
+
             # run callbacks before play_folder is invoked
             play_card_callbacks.run_callbacks(folder, PlayCardState.firstSwipe)
 
@@ -611,6 +626,177 @@ class PlayerMPD:
         plc.get_directory_content(folder)
         return plc.playlist
 
+    def _get_config_file_path(self, folder: str) -> Path:
+        """Get the path to a folder's config file."""
+        music_library_path = Path(components.player.get_music_library_path())
+        return music_library_path / folder / 'folder.yaml'
+
+    def _save_folder_config(self, folder: str, config: dict) -> bool:
+        """
+        Save folder configuration to folder.yaml file.
+
+        :param folder: Folder path relative to music library path
+        :param config: Configuration dict to save
+        :return: True if successful, False otherwise
+        """
+        try:
+            music_library_path = Path(components.player.get_music_library_path())
+            folder_path = music_library_path / folder
+            config_file = self._get_config_file_path(folder)
+
+            # Ensure folder exists
+            folder_path.mkdir(parents=True, exist_ok=True)
+
+            # Write config to file
+            yaml = YAML(typ='rt')
+            with open(config_file, 'w') as f:
+                yaml.dump(config, f)
+
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save folder config for '{folder}': {e}")
+            return False
+
+    def _load_folder_config(self, folder: str) -> dict:
+        """
+        Load folder configuration from folder.yaml file.
+        If no config exists, copy default config and return it.
+
+        :param folder: Folder path relative to music library path
+        :return: Folder configuration dict
+        """
+        config_file = self._get_config_file_path(folder)
+        
+        # Path to default config from project root
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        default_config_file = project_root / 'resources' / 'default-settings' / 'folder.default.yaml'
+
+        # If folder config exists, load it
+        if config_file.exists():
+            try:
+                yaml = YAML(typ='rt')
+                with open(config_file, 'r') as f:
+                    config = yaml.load(f)
+                return config if config else {}
+            except Exception as e:
+                logger.warning(f"Failed to load folder config {config_file}: {e}")
+                return {}
+
+        # If no config exists, copy default config
+        try:
+            if default_config_file.exists():
+                yaml = YAML(typ='rt')
+                with open(default_config_file, 'r') as f:
+                    default_config = yaml.load(f)
+
+                # Save the default config to the folder
+                self._save_folder_config(folder, default_config)
+                return default_config if default_config else {}
+            else:
+                logger.warning(f"Default folder config not found: {default_config_file}")
+                return {}
+        except Exception as e:
+            logger.warning(f"Failed to create folder config {config_file}: {e}")
+            return {}
+
+    def _save_folder_playback_state(self, folder: str) -> bool:
+        """
+        Save the current playback state to the folder's folder.yaml file.
+        
+        :param folder: Folder path relative to music library path
+        :return: True if successful, False otherwise
+        """
+        try:
+            music_library_path = Path(components.player.get_music_library_path())
+            folder_path = music_library_path / folder
+            config_file = folder_path / 'folder.yaml'
+
+            # Load current config (ensures playback_mode is preserved)
+            config = self._load_folder_config(folder)
+
+            # Ensure playback_state section exists
+            if 'playback_state' not in config:
+                config['playback_state'] = {}
+
+            # Update playback state from current MPD status
+            config['playback_state'].update({
+                'current_song_pos': int(self.mpd_status.get('song', 0)),
+                'elapsed': float(self.mpd_status.get('elapsed', 0.0)),
+                'current_filename': self.mpd_status.get('file', ''),
+                'play_status': self.mpd_status.get('state', 'stop')
+            })
+
+            # Save the complete config (including playback_mode)
+            yaml = YAML(typ='rt')
+            with open(config_file, 'w') as f:
+                yaml.dump(config, f)
+
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to save playback state for folder '{folder}': {e}")
+            return False
+
+    @plugs.tag
+    def get_folder_config(self, folder: str) -> dict:
+        """
+        Get the configuration for a folder.
+
+        :param folder: Folder path relative to music library path
+        :return: Folder configuration dict
+        """
+        config = self._load_folder_config(folder)
+        logger.debug(f"get_folder_config called for '{folder}', returning: {config}")
+        return config
+
+    def _apply_folder_playback_state(self, folder: str) -> None:
+        """
+        Apply the saved playback state to resume a folder from where it was stopped.
+        
+        :param folder: Folder path relative to music library path
+        """
+        try:
+            config = self._load_folder_config(folder)
+            playback_state = config.get('playback_state', {})
+
+            song_pos = playback_state.get('current_song_pos', 0)
+            elapsed = playback_state.get('elapsed', 0.0)
+
+            if song_pos > 0 or elapsed > 0:
+                logger.info(f"Resuming folder '{folder}' from song {song_pos} at {elapsed}s")
+                with self.mpd_lock:
+                    self.mpd_client.seek(song_pos, elapsed)
+        except Exception as e:
+            logger.warning(f"Failed to apply playback state for folder '{folder}': {e}")
+
+    @plugs.tag
+    def set_folder_playback_mode(self, folder: str, mode: str) -> bool:
+        """
+        Set the playback mode for a folder.
+
+        :param folder: Folder path relative to music library path
+        :param mode: Playback mode ('none', 'shuffle', 'resume', 'resume_song')
+        :return: True if successful, False otherwise
+        """
+        try:
+            # Load current config
+            config = self._load_folder_config(folder)
+
+            # Update playback mode
+            config['playback_mode'] = mode
+
+            # Save config using the common save method
+            success = self._save_folder_config(folder, config)
+            
+            if success:
+                logger.info(f"Set playback mode for folder '{folder}' to '{mode}'")
+            else:
+                logger.error(f"Failed to save playback mode for folder '{folder}'")
+            
+            return success
+        except Exception as e:
+            logger.error(f"Failed to set playback mode for folder '{folder}': {e}")
+            return False
+
     @plugs.tag
     def play_folder(self, folder: str, recursive: bool = False) -> None:
         """
@@ -622,7 +808,11 @@ class PlayerMPD:
         :param folder: Folder path relative to music library path
         :param recursive: Add folder recursively
         """
-        # TODO: This changes the current state -> Need to save last state
+        # Save current playback state before switching folders
+        last_played_folder = self.music_player_status['player_status'].get('last_played_folder')
+        if last_played_folder and last_played_folder != folder:
+            self._save_folder_playback_state(last_played_folder)
+        
         with self.mpd_lock:
             logger.info(f"Play folder: '{folder}'")
             self.mpd_client.clear()
@@ -643,6 +833,41 @@ class PlayerMPD:
             self.current_folder_status = self.music_player_status['audio_folder_status'].get(folder)
             if self.current_folder_status is None:
                 self.current_folder_status = self.music_player_status['audio_folder_status'][folder] = {}
+
+            # Load and apply folder configuration
+            folder_config = self._load_folder_config(folder)
+            playback_mode = folder_config.get('playback_mode', 'none')
+            playback_state = folder_config.get('playback_state', {})
+
+            # Initialize current_folder_status from saved state
+            self.current_folder_status.update({
+                "CURRENTSONGPOS": playback_state.get('current_song_pos', 0),
+                "ELAPSED": playback_state.get('elapsed', 0.0),
+                "CURRENTFILENAME": playback_state.get('current_filename', ''),
+                "PLAYSTATUS": playback_state.get('play_status', 'play'),
+            })
+
+            # Apply playback mode settings
+            if playback_mode == 'shuffle':
+                self._shuffle(1)  # Enable shuffle
+                self._repeatmode('off')  # Disable repeat
+            elif playback_mode == 'resume':
+                # Resume from exact timestamp
+                self._shuffle(0)  # Disable shuffle
+                self._repeatmode('off')  # Disable repeat
+                self._apply_folder_playback_state(folder)
+            elif playback_mode == 'resume_song':
+                # Resume from beginning of last song
+                self._shuffle(0)  # Disable shuffle
+                self._repeatmode('off')  # Disable repeat
+                # Set to last song position but reset elapsed time
+                playback_state = folder_config.get('playback_state', {})
+                if playback_state.get('current_song_pos', 0) > 0:
+                    with self.mpd_lock:
+                        self.mpd_client.play(playback_state['current_song_pos'])
+            else:  # 'none' or unknown
+                self._shuffle(0)  # Disable shuffle
+                self._repeatmode('off')  # Disable repeat
 
             self.mpd_client.play()
 

@@ -141,7 +141,13 @@
       "no-music": "☝️ No music found!",
       "empty-folder": "This folder is empty! 🙈",
       "show-folder-content": "Show folder content",
-      "back-button-label": "Back"
+      "back-button-label": "Back",
+      "playback-mode": {
+        "none": "None",
+        "shuffle": "Shuffle",
+        "resume": "Resume",
+        "resume_song": "Resume Song"
+      }
     },
     "albums": {
       "unknown-album": "Unknown album",

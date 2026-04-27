@@ -141,7 +141,13 @@
       "no-music": "☝️ Keine Musik vorhanden!",
       "empty-folder": "Dieser Ordner ist leer! 🙈",
       "show-folder-content": "Zeige den Ordnerinhalt an",
-      "back-button-label": "Zurück"
+      "back-button-label": "Zurück",
+      "playback-mode": {
+        "none": "Keine",
+        "shuffle": "Zufällig",
+        "resume": "Fortsetzen",
+        "resume_song": "Song fortsetzen"
+      }
     },
     "albums": {
       "unknown-album": "Unbekanntes Album",
