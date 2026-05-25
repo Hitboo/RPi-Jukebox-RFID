@@ -230,6 +230,10 @@
       "show_covers": {
         "title": "Show Cover Art"
       },
+      "rewind_on_playlist_end": {
+        "title": "Rewind on playlist end",
+        "description": "When enabled, playback rewinds to the first track when a playlist ends."
+      },
       "place_not_swipe": {
         "title": "Place not Swipe",
         "description": "Enable place-not-swipe mode for RFID cards (place card to start, remove to stop)"

@@ -223,6 +223,9 @@ class PlayerMPD:
         self.mpd_status = {}
         self.mpd_status_poll_interval = 0.25
         self.mpd_lock = MpdLock(self.mpd_client, self.mpd_host, 6600)
+        # Track state transitions to detect natural playlist end
+        self.last_mpd_state = None
+        self.was_at_playlist_end = False
         self.status_is_closing = False
         # self.status_thread = threading.Timer(self.mpd_status_poll_interval, self._mpd_status_poll).start()
 
@@ -257,6 +260,33 @@ class PlayerMPD:
                                                          custom_action['args'],
                                                          custom_action['kwargs'])
 
+    def _run_end_of_playlist_next_action(self):
+        """Run the configured end-of-playlist action (runtime read from config).
+
+        Currently supports 'rewind' or 'none'. 'rewind' will call rewind(), anything
+        else is treated as no-op.
+        """
+        action = cfg.setndefault('playermpd', 'end_of_playlist_next_action', value='none').lower()
+        if action == 'rewind':
+            return self.rewind()
+        return None
+
+    @plugs.tag
+    def get_end_of_playlist_rewind(self):
+        """Return True if current end_of_playlist action is 'rewind'."""
+        return cfg.setndefault('playermpd', 'end_of_playlist_next_action', value='none').lower() == 'rewind'
+
+    @plugs.tag
+    def set_end_of_playlist_rewind(self, enabled: bool):
+        """Enable/disable rewind-on-playlist-end and persist to config."""
+        value = 'rewind' if enabled else 'none'
+        cfg.setn('playermpd', 'end_of_playlist_next_action', value=value)
+        try:
+            cfg.save()
+        except Exception:
+            logger.exception('Failed to save configuration when setting end_of_playlist_next_action')
+        return enabled
+
     def mpd_retry_with_mutex(self, mpd_cmd, *args):
         """
         This method adds thread saftey for acceses to mpd via a mutex lock,
@@ -278,8 +308,22 @@ class PlayerMPD:
         this method polls the status from mpd and stores the important inforamtion in the music_player_status,
         it will repeat itself in the intervall specified by self.mpd_status_poll_interval
         """
+        # Track if we're at the last track before updating status
+        if self.mpd_status.get('state') == 'play':
+            playlist_len = int(self.mpd_status.get('playlistlength', -1))
+            current_pos = int(self.mpd_status.get('pos', -1))
+            self.was_at_playlist_end = (current_pos == playlist_len - 1 and playlist_len > 0)
+        
         self.mpd_status.update(self.mpd_retry_with_mutex(self.mpd_client.status))
         self.mpd_status.update(self.mpd_retry_with_mutex(self.mpd_client.currentsong))
+
+        # Check for natural playlist end: transition from play to stop while at last track
+        current_state = self.mpd_status.get('state')
+        if self.last_mpd_state == 'play' and current_state == 'stop' and self.was_at_playlist_end:
+            logger.debug('Natural playlist end detected, running end_of_playlist_next_action')
+            self._run_end_of_playlist_next_action()
+        
+        self.last_mpd_state = current_state
 
         if self.mpd_status.get('elapsed') is not None:
             self.current_folder_status["ELAPSED"] = self.mpd_status['elapsed']
@@ -389,7 +433,7 @@ class PlayerMPD:
         if current_pos == playlist_len - 1:
             logger.debug(f'next() called during last song ({current_pos}) of '
                          f'playlist (len={playlist_len}), running end_of_playlist_next_action.')
-            return self.end_of_playlist_next_action()
+            return self._run_end_of_playlist_next_action()
         try:
             with self.mpd_lock:
                 self.mpd_client.next()
@@ -401,7 +445,7 @@ class PlayerMPD:
     def _next_in_stopped_state(self):
         pos = int(self.mpd_status['pos']) + 1
         if pos > int(self.mpd_status['playlistlength']) - 1:
-            return self.end_of_playlist_next_action()
+            return self._run_end_of_playlist_next_action()
         with self.mpd_lock:
             self.mpd_client.play(pos)
 

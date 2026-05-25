@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import ShowCovers from './show-covers';
 import PlaceNotSwipe from './place-not-swipe';
+import RewindOnPlaylistEnd from './rewind-on-playlist-end';
 
 const SettingsGeneral = () => {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ const SettingsGeneral = () => {
         >
           <ShowCovers />
           <PlaceNotSwipe />
+          <RewindOnPlaylistEnd />
         </Grid>
       </CardContent>
     </Card>

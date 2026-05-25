@@ -296,6 +296,19 @@ const commands = {
     argKeys: ['folder', 'mode'],
   },
 
+  getEndOfPlaylistRewind: {
+    _package: 'player',
+    plugin: 'ctrl',
+    method: 'get_end_of_playlist_rewind',
+  },
+
+  setEndOfPlaylistRewind: {
+    _package: 'player',
+    plugin: 'ctrl',
+    method: 'set_end_of_playlist_rewind',
+    argKeys: ['enabled'],
+  },
+
   getRfidPlaceNotSwipe: {
     _package: 'misc',
     plugin: 'get_rfid_place_not_swipe'

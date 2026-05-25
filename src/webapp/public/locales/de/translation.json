@@ -230,6 +230,10 @@
       "show_covers": {
         "title": "Cover anzeigen"
       },
+      "rewind_on_playlist_end": {
+        "title": "Am Ende der Wiedergabeliste zurückspulen",
+        "description": "Wenn aktiviert, wird die Wiedergabe beim Ende der Wiedergabeliste zum ersten Titel zurückgesetzt."
+      },
       "place_not_swipe": {
         "title": "Platzieren nicht Wischen",
         "description": "Platzieren-nicht-Wischen-Modus für RFID-Karten aktivieren (Karte platzieren zum Starten, entfernen zum Stoppen)"
